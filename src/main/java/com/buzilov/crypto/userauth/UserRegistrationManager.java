@@ -11,16 +11,19 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class UserRegistrationManager {
 
-    public void register(String login, String password) throws UserAlreadyRegisteredException {
+    public void register(String login, String password) throws UserAlreadyRegisteredException, IOException {
         final EncryptionDecryptionManager manager = new EncryptionDecryptionManager();
 
+        String encryptedLogin = manager.encrypt(login);
         String encryptedPassword = manager.encrypt(password);
 
-        final UserInfo userInfo = new UserInfo(login, encryptedPassword);
+        final UserInfo userInfo = new UserInfo(encryptedLogin, encryptedPassword);
 
         ObjectMapper objectMapper = new ObjectMapper();
 

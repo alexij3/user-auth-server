@@ -16,9 +16,10 @@ public class UserAuthManager {
 
         final EncryptionDecryptionManager manager = new EncryptionDecryptionManager();
 
+        String encryptedLogin = manager.encrypt(login);
         String encryptedPassword = manager.encrypt(password);
 
-        final UserInfo userInfo = new UserInfo(login, encryptedPassword);
+        final UserInfo userInfo = new UserInfo(encryptedLogin, encryptedPassword);
 
         ObjectMapper objectMapper = new ObjectMapper();
 
