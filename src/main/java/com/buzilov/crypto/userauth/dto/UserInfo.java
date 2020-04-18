@@ -1,11 +1,14 @@
 package com.buzilov.crypto.userauth.dto;
 
+import com.buzilov.crypto.userauth.mac.ConfidentialityLevel;
+
 import java.util.Objects;
 
 public class UserInfo {
 
     private String login;
     private String password;
+    private ConfidentialityLevel confidentialityLevel;
 
     public UserInfo() {
     }
@@ -13,6 +16,13 @@ public class UserInfo {
     public UserInfo(String login, String password) {
         this.login = login;
         this.password = password;
+        this.confidentialityLevel = ConfidentialityLevel.unrestricted();
+    }
+
+    public UserInfo(String login, String password, ConfidentialityLevel confidentialityLevel) {
+        this.login = login;
+        this.password = password;
+        this.confidentialityLevel = confidentialityLevel;
     }
 
     public String getLogin() {
@@ -29,6 +39,14 @@ public class UserInfo {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public ConfidentialityLevel getConfidentialityLevel() {
+        return confidentialityLevel;
+    }
+
+    public void setConfidentialityLevel(ConfidentialityLevel confidentialityLevel) {
+        this.confidentialityLevel = confidentialityLevel;
     }
 
     @Override

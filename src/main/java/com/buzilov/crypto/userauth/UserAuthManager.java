@@ -12,7 +12,7 @@ import java.util.Optional;
 
 public class UserAuthManager {
 
-    public String authenticate(String login, String password) {
+    public Optional<UserInfo> authenticate(String login, String password) throws Exception {
 
         final EncryptionDecryptionManager manager = new EncryptionDecryptionManager();
 
@@ -28,18 +28,12 @@ public class UserAuthManager {
 
             List<UserInfo> users = objectMapper.readValue(file.toFile(), new TypeReference<List<UserInfo>>() {});
 
-            Optional<UserInfo> registeredUser = users.stream()
+            return users.stream()
                     .filter(user -> user.equals(userInfo))
                     .findFirst();
 
-            if (registeredUser.isPresent()) {
-                return String.format("Welcome, %s.", login);
-            } else {
-                return "Wrong credentials.";
-            }
-
         } catch (Exception e) {
-            return "Something went wrong during authentication";
+            throw new Exception("Something went wrong during authentication", e);
         }
 
 
