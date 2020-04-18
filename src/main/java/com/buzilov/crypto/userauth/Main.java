@@ -1,6 +1,5 @@
 package com.buzilov.crypto.userauth;
 
-import com.buzilov.crypto.userauth.aes.EncryptionDecryptionManager;
 import com.buzilov.crypto.userauth.exception.UserAlreadyRegisteredException;
 
 import java.io.DataInputStream;
@@ -16,7 +15,7 @@ public class Main {
 
     public static void main(String[] args) {
 
-        try{
+        try {
             ServerSocket serverSocket = new ServerSocket(PORT);
 
             Socket socket = serverSocket.accept();
@@ -31,9 +30,9 @@ public class Main {
 
             boolean run = true;
 
-            while (run) {
-                out.writeUTF("Hello!\n" + getMainMessage());
+            out.writeUTF("Hello!\n" + getMainMessage());
 
+            while (run) {
                 message = in.readUTF();
 
                 switch (message) {
@@ -48,9 +47,7 @@ public class Main {
                         String login = in.readUTF();
                         out.writeUTF("Enter password: ");
                         String password = in.readUTF();
-                        out.writeUTF("Registering...");
-                        out.writeUTF(register(login, password));
-                        out.writeUTF("\n" + getMainMessage());
+                        out.writeUTF("Registering..." + "\n" + register(login, password) + "\n\n" + getMainMessage());
                         break;
                     }
 
@@ -59,13 +56,13 @@ public class Main {
                         String login = in.readUTF();
                         out.writeUTF("Enter password: ");
                         String password = in.readUTF();
-                        out.writeUTF("Authenticating...");
-                        out.writeUTF(authenticate(login, password));
-                        out.writeUTF("\n" + getMainMessage());
+                        String authMessage = authenticate(login, password);
+                        out.writeUTF(authMessage + "\n\n" + getMainMessage());
                         break;
 
                     default:
-                        out.writeUTF("Unknown command.");
+                        out.writeUTF("Unknown command." + "\n\n" + getMainMessage());
+                        out.flush();
                         break;
                 }
 
@@ -102,7 +99,7 @@ public class Main {
     }
 
     public static String getMainMessage() {
-        return "Type 'register' to register using login and password\ntype 'auth' to authenticate with login and password\nType 'q' to quit";
+        return "Type 'register' to register using login and password\nType 'auth' to authenticate with login and password\nType 'q' to quit\n";
     }
 
 }
