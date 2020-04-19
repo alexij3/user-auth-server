@@ -2,10 +2,7 @@ package com.buzilov.crypto.userauth;
 
 import com.buzilov.crypto.userauth.exception.UserAlreadyRegisteredException;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -18,60 +15,80 @@ public class Main {
         try {
             ServerSocket serverSocket = new ServerSocket(PORT);
 
-            Socket socket = serverSocket.accept();
-
-            InputStream sin = socket.getInputStream();
-            OutputStream sout = socket.getOutputStream();
-
-            DataInputStream in = new DataInputStream(sin);
-            DataOutputStream out = new DataOutputStream(sout);
-
-            String message = null;
-
-            boolean run = true;
-
-            out.writeUTF("Hello!\n" + getMainMessage());
-
-            while (run) {
-                message = in.readUTF();
-
-                switch (message) {
-                    case "q":
-                        out.writeUTF("Closing the connection...");
-                        run = false;
-                        socket.close();
-                        break;
-
-                    case "register": {
-                        out.writeUTF("Enter login: ");
-                        String login = in.readUTF();
-                        out.writeUTF("Enter password: ");
-                        String password = in.readUTF();
-                        out.writeUTF("Registering..." + "\n" + register(login, password) + "\n\n" + getMainMessage());
-                        break;
-                    }
-
-                    case "auth":
-                        out.writeUTF("Enter login: ");
-                        String login = in.readUTF();
-                        out.writeUTF("Enter password: ");
-                        String password = in.readUTF();
-                        String authMessage = authenticate(login, password);
-                        out.writeUTF(authMessage + "\n\n" + getMainMessage());
-                        break;
-
-                    default:
-                        out.writeUTF("Unknown command." + "\n\n" + getMainMessage());
-                        out.flush();
-                        break;
-                }
-
+            while (true) {
+                new ClientHandler(serverSocket.accept()).start();
             }
 
-        }catch(Exception e){
+        } catch(Exception e){
             e.printStackTrace();
         }
 
+    }
+
+    private static class ClientHandler extends Thread {
+        private Socket clientSocket;
+
+        public ClientHandler(Socket socket) {
+            this.clientSocket = socket;
+        }
+
+        @Override
+        public void run() {
+            try {
+                InputStream sin = clientSocket.getInputStream();
+                OutputStream sout = clientSocket.getOutputStream();
+
+                DataInputStream in = new DataInputStream(sin);
+                DataOutputStream out = new DataOutputStream(sout);
+
+                String message = null;
+
+                boolean run = true;
+
+                out.writeUTF("Hello!\n" + getMainMessage());
+
+                while (run) {
+                    message = in.readUTF();
+
+                    switch (message) {
+                        case "q":
+                            out.writeUTF("Closing the connection...");
+                            run = false;
+                            clientSocket.close();
+                            break;
+
+                        case "register": {
+                            out.writeUTF("Enter login: ");
+                            String login = in.readUTF();
+                            out.writeUTF("Enter password: ");
+                            String password = in.readUTF();
+                            out.writeUTF("Registering..." + "\n" + register(login, password) + "\n\n" + getMainMessage());
+                            break;
+                        }
+
+                        case "auth":
+                            out.writeUTF("Enter login: ");
+                            String login = in.readUTF();
+                            out.writeUTF("Enter password: ");
+                            String password = in.readUTF();
+                            String authMessage = authenticate(login, password);
+                            out.writeUTF(authMessage + "\n\n" + getMainMessage());
+                            break;
+
+                        default:
+                            out.writeUTF("Unknown command." + "\n\n" + getMainMessage());
+                            out.flush();
+                            break;
+                    }
+                }
+            } catch (Exception e) {
+                try {
+                    clientSocket.close();
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
     }
 
     public static String register(String login, String password) {
