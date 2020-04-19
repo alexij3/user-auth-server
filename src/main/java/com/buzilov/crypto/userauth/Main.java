@@ -19,6 +19,8 @@ public class Main {
 
     private static int PORT = 5555;
 
+    private static final DocumentRepository repository = new DocumentRepository();
+
     private static final String QUIT_COMMAND = "q";
     private static final String REGISTER_COMMAND = "register";
     private static final String AUTH_COMMAND = "auth";
@@ -45,9 +47,8 @@ public class Main {
             out.writeUTF("Hello!\n" + getMainMessage());
 
             while (run) {
-                message = in.readUTF();
-
                 if (!Authentication.isUserAuthenticated()) {
+                    message = in.readUTF();
                     switch (message) {
                         case QUIT_COMMAND:
                             out.writeUTF("Closing the connection...");
@@ -94,50 +95,71 @@ public class Main {
                             break;
                     }
                 } else {
+                    message = in.readUTF();
                     switch (message) {
                         case QUIT_COMMAND:
+                            Authentication.currentUserInfo = null;
+                            out.writeUTF(getMainMessage());
                             break;
 
                         case LIST_ALL_DOCUMENTS_COMMAND:
                             List<Document> documents = getAllDocuments();
-                            out.writeUTF("[Documents]:\n" + getAllDocumentsMessage(documents));
-                            out.writeUTF(getDocumentsOperationsMessage());
+                            out.writeUTF("[Documents]:\n" + getAllDocumentsMessage(documents) + "\n" + getDocumentsOperationsMessage());
 
-                            message = in.readUTF();
+                            boolean isInAllDocumentsList = true;
 
-                            try {
-                                final int documentId = Integer.parseInt(message);
-                                Optional<Document> detailedDocument = documents.stream()
-                                                                                .filter(document -> document.getId() == documentId)
-                                                                                .findFirst();
+                            while (isInAllDocumentsList) {
 
-                                if (detailedDocument.isPresent()) {
-                                    out.writeUTF(getDocumentDetails(detailedDocument.get()) + "\n" + getDetailedDocumentOperations(detailedDocument.get()));
+                                message = in.readUTF();
 
-                                    message = in.readUTF();
-
-                                    if (message.equals(QUIT_COMMAND)) {
-                                        break;
-                                    }
-
-                                    if (message.equals(APPEND_TEXT_COMMAND)) {
-                                        out.writeUTF("Write text to append to document's content: " );
-
-                                        message = in.readUTF();
-
-
-
-                                    }
-
-
+                                if (message.equals(QUIT_COMMAND)) {
+                                    isInAllDocumentsList = false;
+                                    out.writeUTF(getAuthenticatedMessage());
                                 } else {
-                                    out.writeUTF(String.format("Wrong document id '%d'. Try again.\n", documentId));
-                                    break;
-                                }
+                                    try {
+                                        final int documentId = Integer.parseInt(message);
+                                        Optional<Document> detailedDocument = documents.stream()
+                                                .filter(document -> document.getId() == documentId)
+                                                .findFirst();
 
-                            } catch (NumberFormatException e) {
-                                out.writeUTF(String.format("You should either type '%s' or valid document ID! Try again.\n", QUIT_COMMAND));
-                                break;
+                                        if (detailedDocument.isPresent()) {
+                                            boolean isInDetailedDocument = true;
+
+                                            Document detailedDocumentObject = detailedDocument.get();
+                                            out.writeUTF(getDocumentDetails(detailedDocumentObject) + "\n" + getDetailedDocumentOperations(detailedDocumentObject));
+
+                                            while (isInDetailedDocument) {
+                                                message = in.readUTF();
+
+                                                switch (message) {
+                                                    case QUIT_COMMAND:
+                                                        isInDetailedDocument = false;
+                                                        out.writeUTF(getDocumentsOperationsMessage());
+                                                        break;
+
+                                                    case APPEND_TEXT_COMMAND:
+                                                        out.writeUTF("Write text to append to document's content: ");
+                                                        message = in.readUTF();
+                                                        detailedDocumentObject.setContent(detailedDocumentObject.getContent() + message);
+                                                        Document updatedDocument = repository.update(detailedDocumentObject);
+                                                        out.writeUTF("\n" + getDocumentDetails(updatedDocument) + "\n" + getDetailedDocumentOperations(updatedDocument) + "\n");
+                                                        break;
+
+                                                    default:
+                                                        out.writeUTF("Wrong command! Try again.\n");
+                                                        break;
+                                                }
+                                            }
+
+
+                                        } else {
+                                            out.writeUTF(String.format("Wrong document id '%d'. Try again.\n", documentId));
+                                        }
+
+                                    } catch (NumberFormatException e) {
+                                        out.writeUTF(String.format("You should either type '%s' or valid document ID! Try again.\n", QUIT_COMMAND));
+                                    }
+                                }
                             }
 
                             break;
@@ -182,7 +204,6 @@ public class Main {
     }
 
     public static List<Document> getAllDocuments() {
-        final DocumentRepository repository = new DocumentRepository();
         return repository.getAll();
     }
 

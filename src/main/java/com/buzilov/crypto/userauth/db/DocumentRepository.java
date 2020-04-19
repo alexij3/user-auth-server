@@ -43,7 +43,12 @@ public class DocumentRepository {
                                                         .findFirst();
 
             if (documentToEdit.isPresent()) {
+                int documentToEditIndex = existingDocuments.indexOf(documentToEdit.get());
+                existingDocuments.add(documentToEditIndex, document);
+                existingDocuments.remove(documentToEditIndex + 1);
 
+                objectMapper.writeValue(filePath.toFile(), existingDocuments);
+                return document;
             } else {
                 throw new RuntimeException(String.format("Could not find document with ID %d in the repository!", document.getId()));
             }
@@ -51,8 +56,6 @@ public class DocumentRepository {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-
-        return document;
     }
 
 
