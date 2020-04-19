@@ -23,6 +23,7 @@ public class Main {
     private static final String REGISTER_COMMAND = "register";
     private static final String AUTH_COMMAND = "auth";
     private static final String LIST_ALL_DOCUMENTS_COMMAND = "listAll";
+    private static final String APPEND_TEXT_COMMAND = "appendText";
 
     public static void main(String[] args) {
 
@@ -95,14 +96,50 @@ public class Main {
                 } else {
                     switch (message) {
                         case QUIT_COMMAND:
-                            out.writeUTF("Closing the connection...");
-                            run = false;
-                            socket.close();
                             break;
 
                         case LIST_ALL_DOCUMENTS_COMMAND:
                             List<Document> documents = getAllDocuments();
-                            out.writeUTF("Documents:\n" + getAllDocumentsMessage(documents));
+                            out.writeUTF("[Documents]:\n" + getAllDocumentsMessage(documents));
+                            out.writeUTF(getDocumentsOperationsMessage());
+
+                            message = in.readUTF();
+
+                            try {
+                                final int documentId = Integer.parseInt(message);
+                                Optional<Document> detailedDocument = documents.stream()
+                                                                                .filter(document -> document.getId() == documentId)
+                                                                                .findFirst();
+
+                                if (detailedDocument.isPresent()) {
+                                    out.writeUTF(getDocumentDetails(detailedDocument.get()) + "\n" + getDetailedDocumentOperations(detailedDocument.get()));
+
+                                    message = in.readUTF();
+
+                                    if (message.equals(QUIT_COMMAND)) {
+                                        break;
+                                    }
+
+                                    if (message.equals(APPEND_TEXT_COMMAND)) {
+                                        out.writeUTF("Write text to append to document's content: " );
+
+                                        message = in.readUTF();
+
+
+
+                                    }
+
+
+                                } else {
+                                    out.writeUTF(String.format("Wrong document id '%d'. Try again.\n", documentId));
+                                    break;
+                                }
+
+                            } catch (NumberFormatException e) {
+                                out.writeUTF(String.format("You should either type '%s' or valid document ID! Try again.\n", QUIT_COMMAND));
+                                break;
+                            }
+
                             break;
 
                         default:
@@ -155,7 +192,7 @@ public class Main {
     }
 
     public static String getAuthenticatedMessage() {
-        return String.format("Type '%s' to list all the documents.", LIST_ALL_DOCUMENTS_COMMAND);
+        return String.format("1) Type '%s' to list all the documents.\n2) Type '%s' to logout.", LIST_ALL_DOCUMENTS_COMMAND, QUIT_COMMAND);
     }
 
     public static String getAllDocumentsMessage(List<Document> documents) {
@@ -177,9 +214,48 @@ public class Main {
                 stringBuilder.append(operation);
                 stringBuilder.append(" ");
             }
+
+            stringBuilder.append("\n\n");
         }
 
         return stringBuilder.toString();
+    }
+
+    public static String getDocumentsOperationsMessage() {
+        return "1) Enter document ID to get detailed content.\n2) Enter 'q' to go back.\n";
+    }
+
+    public static String getDocumentDetails(Document document) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("[Document details]:")
+                .append("\n")
+                .append("ID: ")
+                .append(document.getId())
+                .append("\n")
+                .append("Name: ")
+                .append(document.getName())
+                .append("\n")
+                .append("Content: ")
+                .append(document.getContent())
+                .append("\n");
+
+        return sb.toString();
+    }
+
+    public static String getDetailedDocumentOperations(Document document) {
+        StringBuilder sb = new StringBuilder();
+
+        OperationPermissionEvaluator evaluator = new OperationPermissionEvaluator();
+        List<OperationPermissionEvaluator.Operation> evaluatedOperations = evaluator.evaluateOperations(document, Authentication.getCurrentUserInfo());
+
+        if (evaluatedOperations.contains(OperationPermissionEvaluator.Operation.WRITE)) {
+            sb.append(String.format("1) Type '%s' to append text to document content.\n2) Type '%s' to go back.\n", APPEND_TEXT_COMMAND, QUIT_COMMAND));
+        } else {
+            sb.append(String.format("Type '%s' to go back.\n", QUIT_COMMAND));
+        }
+
+        return sb.toString();
     }
 
 }

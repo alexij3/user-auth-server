@@ -2,6 +2,8 @@ package com.buzilov.crypto.userauth.dto;
 
 import com.buzilov.crypto.userauth.mac.ConfidentialityLevel;
 
+import java.util.Objects;
+
 public class Document {
 
     private int id;
@@ -54,5 +56,20 @@ public class Document {
 
     public void setId(int id) {
         this.id = id;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Document document = (Document) o;
+        return id == document.id &&
+                Objects.equals(name, document.name) &&
+                Objects.equals(content, document.content);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, name, content);
     }
 }
