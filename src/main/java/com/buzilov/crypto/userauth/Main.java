@@ -6,10 +6,7 @@ import com.buzilov.crypto.userauth.dto.UserInfo;
 import com.buzilov.crypto.userauth.exception.UserAlreadyRegisteredException;
 import com.buzilov.crypto.userauth.mac.OperationPermissionEvaluator;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
@@ -32,150 +29,168 @@ public class Main {
         try {
             ServerSocket serverSocket = new ServerSocket(PORT);
 
-            Socket socket = serverSocket.accept();
-
-            InputStream sin = socket.getInputStream();
-            OutputStream sout = socket.getOutputStream();
-
-            DataInputStream in = new DataInputStream(sin);
-            DataOutputStream out = new DataOutputStream(sout);
-
-            String message = null;
-
-            boolean run = true;
-
-            out.writeUTF("Hello!\n" + getMainMessage());
-
-            while (run) {
-                if (!Authentication.isUserAuthenticated()) {
-                    message = in.readUTF();
-                    switch (message) {
-                        case QUIT_COMMAND:
-                            out.writeUTF("Closing the connection...");
-                            run = false;
-                            socket.close();
-                            break;
-                        case REGISTER_COMMAND: {
-                            out.writeUTF("Enter login: ");
-                            String login = in.readUTF();
-                            out.writeUTF("Enter password: ");
-                            String password = in.readUTF();
-
-                            try {
-                                register(login, password);
-                                out.writeUTF("Successfully registered! What will you do next?\n" + getMainMessage());
-                            } catch (Exception e) {
-                                out.writeUTF(e.getMessage());
-                            }
-
-                            break;
-                        }
-                        case AUTH_COMMAND: {
-                            out.writeUTF("Enter login: ");
-                            String login = in.readUTF();
-                            out.writeUTF("Enter password: ");
-                            String password = in.readUTF();
-
-                            try {
-                                Optional<UserInfo> user = authenticate(login, password);
-                                if (user.isPresent()) {
-                                    out.writeUTF(String.format("Hello, %s! What will you do next?\n", login) + "\n" + getAuthenticatedMessage());
-                                } else {
-                                    out.writeUTF("Bad credentials. Try again.\n" + getMainMessage());
-                                }
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                                out.writeUTF(e.getMessage() + "\nTry again.\n" + getMainMessage());
-                            }
-                            break;
-                        }
-                        default:
-                            out.writeUTF("Unknown command." + "\n\n" + getMainMessage());
-                            out.flush();
-                            break;
-                    }
-                } else {
-                    message = in.readUTF();
-                    switch (message) {
-                        case QUIT_COMMAND:
-                            Authentication.currentUserInfo = null;
-                            out.writeUTF(getMainMessage());
-                            break;
-
-                        case LIST_ALL_DOCUMENTS_COMMAND:
-                            List<Document> documents = getAllDocuments();
-                            out.writeUTF("[Documents]:\n" + getAllDocumentsMessage(documents) + "\n" + getDocumentsOperationsMessage());
-
-                            boolean isInAllDocumentsList = true;
-
-                            while (isInAllDocumentsList) {
-
-                                message = in.readUTF();
-
-                                if (message.equals(QUIT_COMMAND)) {
-                                    isInAllDocumentsList = false;
-                                    out.writeUTF(getAuthenticatedMessage());
-                                } else {
-                                    try {
-                                        final int documentId = Integer.parseInt(message);
-                                        Optional<Document> detailedDocument = documents.stream()
-                                                .filter(document -> document.getId() == documentId)
-                                                .findFirst();
-
-                                        if (detailedDocument.isPresent()) {
-                                            boolean isInDetailedDocument = true;
-
-                                            Document detailedDocumentObject = detailedDocument.get();
-                                            out.writeUTF(getDocumentDetails(detailedDocumentObject) + "\n" + getDetailedDocumentOperations(detailedDocumentObject));
-
-                                            while (isInDetailedDocument) {
-                                                message = in.readUTF();
-
-                                                switch (message) {
-                                                    case QUIT_COMMAND:
-                                                        isInDetailedDocument = false;
-                                                        out.writeUTF(getDocumentsOperationsMessage());
-                                                        break;
-
-                                                    case APPEND_TEXT_COMMAND:
-                                                        out.writeUTF("Write text to append to document's content: ");
-                                                        message = in.readUTF();
-                                                        detailedDocumentObject.setContent(detailedDocumentObject.getContent() + message);
-                                                        Document updatedDocument = repository.update(detailedDocumentObject);
-                                                        out.writeUTF("\n" + getDocumentDetails(updatedDocument) + "\n" + getDetailedDocumentOperations(updatedDocument) + "\n");
-                                                        break;
-
-                                                    default:
-                                                        out.writeUTF("Wrong command! Try again.\n");
-                                                        break;
-                                                }
-                                            }
-
-
-                                        } else {
-                                            out.writeUTF(String.format("Wrong document id '%d'. Try again.\n", documentId));
-                                        }
-
-                                    } catch (NumberFormatException e) {
-                                        out.writeUTF(String.format("You should either type '%s' or valid document ID! Try again.\n", QUIT_COMMAND));
-                                    }
-                                }
-                            }
-
-                            break;
-
-                        default:
-                            out.writeUTF("Unknown command." + "\n\n" + getAuthenticatedMessage());
-                            out.flush();
-                            break;
-                    }
-                }
-
+            while (true) {
+                new ClientHandler(serverSocket.accept()).start();
             }
-        } catch(Exception e){
+
+        } catch (Exception e){
             e.printStackTrace();
         }
 
+    }
+
+    private static class ClientHandler extends Thread {
+        private Socket clientSocket;
+
+        public ClientHandler(Socket socket) {
+            this.clientSocket = socket;
+        }
+
+        @Override
+        public void run() {
+            try {
+                InputStream sin = clientSocket.getInputStream();
+                OutputStream sout = clientSocket.getOutputStream();
+
+                DataInputStream in = new DataInputStream(sin);
+                DataOutputStream out = new DataOutputStream(sout);
+
+                String message = null;
+
+                boolean run = true;
+
+                out.writeUTF("Hello!\n" + getMainMessage());
+
+                while (run) {
+                    if (!Authentication.isUserAuthenticated()) {
+                        message = in.readUTF();
+                        switch (message) {
+                            case QUIT_COMMAND:
+                                out.writeUTF("Closing the connection...");
+                                run = false;
+                                clientSocket.close();
+                                break;
+                            case REGISTER_COMMAND: {
+                                out.writeUTF("Enter login: ");
+                                String login = in.readUTF();
+                                out.writeUTF("Enter password: ");
+                                String password = in.readUTF();
+
+                                try {
+                                    register(login, password);
+                                    out.writeUTF("Successfully registered! What will you do next?\n" + getMainMessage());
+                                } catch (Exception e) {
+                                    out.writeUTF(e.getMessage());
+                                }
+
+                                break;
+                            }
+                            case AUTH_COMMAND: {
+                                out.writeUTF("Enter login: ");
+                                String login = in.readUTF();
+                                out.writeUTF("Enter password: ");
+                                String password = in.readUTF();
+
+                                try {
+                                    Optional<UserInfo> user = authenticate(login, password);
+                                    if (user.isPresent()) {
+                                        out.writeUTF(String.format("Hello, %s! What will you do next?\n", login) + "\n" + getAuthenticatedMessage());
+                                    } else {
+                                        out.writeUTF("Bad credentials. Try again.\n" + getMainMessage());
+                                    }
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                    out.writeUTF(e.getMessage() + "\nTry again.\n" + getMainMessage());
+                                }
+                                break;
+                            }
+                            default:
+                                out.writeUTF("Unknown command." + "\n\n" + getMainMessage());
+                                out.flush();
+                                break;
+                        }
+                    } else {
+                        message = in.readUTF();
+                        switch (message) {
+                            case QUIT_COMMAND:
+                                Authentication.currentUserInfo = null;
+                                out.writeUTF(getMainMessage());
+                                break;
+
+                            case LIST_ALL_DOCUMENTS_COMMAND:
+                                List<Document> documents = getAllDocuments();
+                                out.writeUTF("[Documents]:\n" + getAllDocumentsMessage(documents) + "\n" + getDocumentsOperationsMessage());
+
+                                boolean isInAllDocumentsList = true;
+
+                                while (isInAllDocumentsList) {
+
+                                    message = in.readUTF();
+
+                                    if (message.equals(QUIT_COMMAND)) {
+                                        isInAllDocumentsList = false;
+                                        out.writeUTF(getAuthenticatedMessage());
+                                    } else {
+                                        try {
+                                            final int documentId = Integer.parseInt(message);
+                                            Optional<Document> detailedDocument = documents.stream()
+                                                    .filter(document -> document.getId() == documentId)
+                                                    .findFirst();
+
+                                            if (detailedDocument.isPresent()) {
+                                                boolean isInDetailedDocument = true;
+
+                                                Document detailedDocumentObject = detailedDocument.get();
+                                                out.writeUTF(getDocumentDetails(detailedDocumentObject) + "\n" + getDetailedDocumentOperations(detailedDocumentObject));
+
+                                                while (isInDetailedDocument) {
+                                                    message = in.readUTF();
+
+                                                    switch (message) {
+                                                        case QUIT_COMMAND:
+                                                            isInDetailedDocument = false;
+                                                            out.writeUTF(getDocumentsOperationsMessage());
+                                                            break;
+
+                                                        case APPEND_TEXT_COMMAND:
+                                                            out.writeUTF("Write text to append to document's content: ");
+                                                            message = in.readUTF();
+                                                            detailedDocumentObject.setContent(detailedDocumentObject.getContent() + message);
+                                                            Document updatedDocument = repository.update(detailedDocumentObject);
+                                                            out.writeUTF("\n" + getDocumentDetails(updatedDocument) + "\n" + getDetailedDocumentOperations(updatedDocument) + "\n");
+                                                            break;
+
+                                                        default:
+                                                            out.writeUTF("Wrong command! Try again.\n");
+                                                            break;
+                                                    }
+                                                }
+
+
+                                            } else {
+                                                out.writeUTF(String.format("Wrong document id '%d'. Try again.\n", documentId));
+                                            }
+
+                                        } catch (NumberFormatException e) {
+                                            out.writeUTF(String.format("You should either type '%s' or valid document ID! Try again.\n", QUIT_COMMAND));
+                                        }
+                                    }
+                                }
+
+                                break;
+
+                            default:
+                                out.writeUTF("Unknown command." + "\n\n" + getAuthenticatedMessage());
+                                out.flush();
+                                break;
+                        }
+                    }
+
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     public static void register(String login, String password) throws Exception {
