@@ -4,10 +4,14 @@ import com.buzilov.crypto.userauth.dto.UserInfo;
 
 public class Authentication {
 
-    public static UserInfo currentUserInfo;
+    private static UserInfo currentUserInfo;
 
     public static UserInfo getCurrentUserInfo() {
         return currentUserInfo;
+    }
+
+    public static void setUserInfo(UserInfo userInfo) {
+        Authentication.currentUserInfo = userInfo;
     }
 
     public static boolean isUserAuthenticated() {

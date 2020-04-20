@@ -5,11 +5,15 @@ import com.buzilov.crypto.userauth.dto.Document;
 import com.buzilov.crypto.userauth.dto.UserInfo;
 import com.buzilov.crypto.userauth.exception.UserAlreadyRegisteredException;
 import com.buzilov.crypto.userauth.mac.OperationPermissionEvaluator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 public class Main {
@@ -23,8 +27,13 @@ public class Main {
     private static final String AUTH_COMMAND = "auth";
     private static final String LIST_ALL_DOCUMENTS_COMMAND = "listAll";
     private static final String APPEND_TEXT_COMMAND = "appendText";
+    private static List<ClientHandler> clientHandlers = new ArrayList<>();
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
 
     public static void main(String[] args) {
+
+        LOGGER.info("Server started.");
 
         try {
             ServerSocket serverSocket = new ServerSocket(PORT);
@@ -34,21 +43,26 @@ public class Main {
             }
 
         } catch (Exception e){
-            e.printStackTrace();
+            LOGGER.error("Error has occured in main method", e);
         }
 
     }
 
     private static class ClientHandler extends Thread {
         private Socket clientSocket;
+        private String name;
 
         public ClientHandler(Socket socket) {
             this.clientSocket = socket;
+            clientHandlers.add(this);
+            this.name = "Client " + clientHandlers.size();
         }
 
         @Override
         public void run() {
             try {
+                LOGGER.info("New client {} has connected to the server.", this.name);
+
                 InputStream sin = clientSocket.getInputStream();
                 OutputStream sout = clientSocket.getOutputStream();
 
@@ -69,6 +83,8 @@ public class Main {
                                 out.writeUTF("Closing the connection...");
                                 run = false;
                                 clientSocket.close();
+                                clientHandlers.remove(this);
+                                LOGGER.info("{} has been disconnected from the server.", this.name);
                                 break;
                             case REGISTER_COMMAND: {
                                 out.writeUTF("Enter login: ");
@@ -79,8 +95,10 @@ public class Main {
                                 try {
                                     register(login, password);
                                     out.writeUTF("Successfully registered! What will you do next?\n" + getMainMessage());
+                                    LOGGER.info("Registered user with login {}.", login);
                                 } catch (Exception e) {
                                     out.writeUTF(e.getMessage());
+                                    LOGGER.error("Something went wrong during registration", e);
                                 }
 
                                 break;
@@ -95,11 +113,12 @@ public class Main {
                                     Optional<UserInfo> user = authenticate(login, password);
                                     if (user.isPresent()) {
                                         out.writeUTF(String.format("Hello, %s! What will you do next?\n", login) + "\n" + getAuthenticatedMessage());
+                                        LOGGER.info("Authenticated user with login {}.", login);
                                     } else {
                                         out.writeUTF("Bad credentials. Try again.\n" + getMainMessage());
                                     }
                                 } catch (Exception e) {
-                                    e.printStackTrace();
+                                    LOGGER.error("Something went wrong during authentication", e);
                                     out.writeUTF(e.getMessage() + "\nTry again.\n" + getMainMessage());
                                 }
                                 break;
@@ -113,13 +132,15 @@ public class Main {
                         message = in.readUTF();
                         switch (message) {
                             case QUIT_COMMAND:
-                                Authentication.currentUserInfo = null;
+                                LOGGER.info("User {} has logged out.", Authentication.getCurrentUserInfo().getLogin());
+                                Authentication.setUserInfo(null);
                                 out.writeUTF(getMainMessage());
                                 break;
 
                             case LIST_ALL_DOCUMENTS_COMMAND:
                                 List<Document> documents = getAllDocuments();
                                 out.writeUTF("[Documents]:\n" + getAllDocumentsMessage(documents) + "\n" + getDocumentsOperationsMessage());
+                                LOGGER.info("User {} has requested the list of documents.", Authentication.getCurrentUserInfo().getLogin());
 
                                 boolean isInAllDocumentsList = true;
 
@@ -136,6 +157,8 @@ public class Main {
                                             Optional<Document> detailedDocument = documents.stream()
                                                     .filter(document -> document.getId() == documentId)
                                                     .findFirst();
+
+                                            LOGGER.info("User {} has requested details for document with ID {}.", Authentication.getCurrentUserInfo().getLogin(), documentId);
 
                                             if (detailedDocument.isPresent()) {
                                                 boolean isInDetailedDocument = true;
@@ -158,6 +181,7 @@ public class Main {
                                                             detailedDocumentObject.setContent(detailedDocumentObject.getContent() + message);
                                                             Document updatedDocument = repository.update(detailedDocumentObject);
                                                             out.writeUTF("\n" + getDocumentDetails(updatedDocument) + "\n" + getDetailedDocumentOperations(updatedDocument) + "\n");
+                                                            LOGGER.info("User {} is appending text to a document with ID {}.", Authentication.getCurrentUserInfo().getLogin(), documentId);
                                                             break;
 
                                                         default:
@@ -169,6 +193,7 @@ public class Main {
 
                                             } else {
                                                 out.writeUTF(String.format("Wrong document id '%d'. Try again.\n", documentId));
+                                                LOGGER.error("Could find requested document with id {}", documentId);
                                             }
 
                                         } catch (NumberFormatException e) {
@@ -188,8 +213,27 @@ public class Main {
 
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                try {
+                    clientSocket.close();
+                    LOGGER.error("Something went wrong on the {} side, trying to close the socket.", this.name);
+                    clientHandlers.remove(this);
+                } catch (IOException ex) {
+                    LOGGER.error("Something went wrong when closing the client socket.", e);
+                }
             }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ClientHandler that = (ClientHandler) o;
+            return Objects.equals(name, that.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name);
         }
     }
 
@@ -211,7 +255,7 @@ public class Main {
 
         try {
             Optional<UserInfo> registeredUser = authManager.authenticate(login, password);
-            registeredUser.ifPresent(userInfo -> Authentication.currentUserInfo = userInfo);
+            registeredUser.ifPresent(Authentication::setUserInfo);
             return registeredUser;
         } catch (Exception e) {
             throw new Exception(e.getMessage(), e);

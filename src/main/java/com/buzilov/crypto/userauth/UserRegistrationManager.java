@@ -5,6 +5,8 @@ import com.buzilov.crypto.userauth.dto.UserInfo;
 import com.buzilov.crypto.userauth.exception.UserAlreadyRegisteredException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
@@ -16,6 +18,8 @@ import java.util.Collections;
 import java.util.List;
 
 public class UserRegistrationManager {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(UserRegistrationManager.class);
 
     public void register(String login, String password) throws UserAlreadyRegisteredException, IOException {
         final EncryptionDecryptionManager manager = new EncryptionDecryptionManager();
@@ -46,7 +50,7 @@ public class UserRegistrationManager {
             }
 
         } catch (IOException e) {
-            e.printStackTrace();
+            LOGGER.error("Something went wrong during user registration", e);
         }
 
     }

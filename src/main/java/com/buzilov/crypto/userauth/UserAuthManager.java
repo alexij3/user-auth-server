@@ -30,6 +30,7 @@ public class UserAuthManager {
 
             return users.stream()
                     .filter(user -> user.equals(userInfo))
+                    .peek(user -> user.setLogin(manager.decrypt(user.getLogin())))
                     .findFirst();
 
         } catch (Exception e) {
