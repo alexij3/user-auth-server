@@ -1,5 +1,6 @@
 package com.buzilov.crypto.userauth;
 
+import com.buzilov.crypto.userauth.audit.service.AuditLogService;
 import com.buzilov.crypto.userauth.db.DocumentRepository;
 import com.buzilov.crypto.userauth.dto.Document;
 import com.buzilov.crypto.userauth.dto.UserInfo;
@@ -30,6 +31,8 @@ public class Main {
     private static List<ClientHandler> clientHandlers = new ArrayList<>();
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
+
+    private static AuditLogService auditLogService = new AuditLogService();
 
     public static void main(String[] args) {
 
@@ -133,6 +136,7 @@ public class Main {
                         switch (message) {
                             case QUIT_COMMAND:
                                 LOGGER.info("User {} has logged out.", Authentication.getCurrentUserInfo().getLogin());
+                                auditLogService.writeLog(Authentication.getCurrentUserInfo().getLogin(), "Logging out.");
                                 Authentication.setUserInfo(null);
                                 out.writeUTF(getMainMessage());
                                 break;
@@ -140,7 +144,6 @@ public class Main {
                             case LIST_ALL_DOCUMENTS_COMMAND:
                                 List<Document> documents = getAllDocuments();
                                 out.writeUTF("[Documents]:\n" + getAllDocumentsMessage(documents) + "\n" + getDocumentsOperationsMessage());
-                                LOGGER.info("User {} has requested the list of documents.", Authentication.getCurrentUserInfo().getLogin());
 
                                 boolean isInAllDocumentsList = true;
 
@@ -157,8 +160,6 @@ public class Main {
                                             Optional<Document> detailedDocument = documents.stream()
                                                     .filter(document -> document.getId() == documentId)
                                                     .findFirst();
-
-                                            LOGGER.info("User {} has requested details for document with ID {}.", Authentication.getCurrentUserInfo().getLogin(), documentId);
 
                                             if (detailedDocument.isPresent()) {
                                                 boolean isInDetailedDocument = true;
@@ -181,7 +182,6 @@ public class Main {
                                                             detailedDocumentObject.setContent(detailedDocumentObject.getContent() + message);
                                                             Document updatedDocument = repository.update(detailedDocumentObject);
                                                             out.writeUTF("\n" + getDocumentDetails(updatedDocument) + "\n" + getDetailedDocumentOperations(updatedDocument) + "\n");
-                                                            LOGGER.info("User {} is appending text to a document with ID {}.", Authentication.getCurrentUserInfo().getLogin(), documentId);
                                                             break;
 
                                                         default:
@@ -306,6 +306,9 @@ public class Main {
     }
 
     public static String getDocumentDetails(Document document) {
+        auditLogService.writeLog(Authentication.getCurrentUserInfo().getLogin(), String.format("Requested details for document with id %d", document.getId()));
+        LOGGER.info("User {} has requested details for document with ID {}.", Authentication.getCurrentUserInfo().getLogin(), document.getId());
+
         StringBuilder sb = new StringBuilder();
 
         sb.append("[Document details]:")
